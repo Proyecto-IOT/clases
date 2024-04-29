@@ -1,0 +1,153 @@
+#include <Servo.h>
+#include <SPI.h>
+#include <MFRC522.h>
+// Configuración de los pines para el lector RFID
+#define RST_PIN     9
+#define SS_PIN      10
+#define MOSI      11
+#define MISO      12
+#define SCK      13
+MFRC522 mfrc522(SS_PIN, RST_PIN); 
+//sonido
+const int sensorSonido=A2;
+int umbral=200;
+//ultrasonico
+const int Sensores = 6;
+const int trigPins[Sensores] = {2};
+const int echoPins[Sensores] = {3};
+const int ledrojo=5;
+//fororesistencia
+const int Fotosenso=A0;
+const int ledFR=4;
+//humo
+const int HumoSensor=A1;
+//const int ledHU=13;
+//sensorinfra
+const int InfraSensor=7;
+const int servo=6;
+//cafe positivo, azul negativo
+String Name[Sensores] = {"1","1","1","1","1","1"};
+String ID[Sensores] = {"US","FT","HM","IF","RFC","SO"};
+//sensor rfid
+int tamaniio = 6;
+int ultimoValor[Sensores]={-1};
+Servo servo1;
+void setup() {
+  for (int i = 0; i < tamaniio; i++) {
+    pinMode(trigPins[i], OUTPUT);
+    pinMode(echoPins[i], INPUT);
+  }
+  servo1.attach(servo);
+  pinMode(InfraSensor, INPUT);
+  Serial.begin(115200);
+   SPI.begin(); // Inicializar comunicación SPI
+  mfrc522.PCD_Init(); // Inicializar el lector RFID
+  delay(4); // Retardo opcional
+  mfrc522.PCD_DumpVersionToSerial(); // Mostrar detalles del lector RFID
+  Serial.println("Scan PICC to see UID, SAK, type, and data blocks...");
+
+}
+
+void loop() {
+  int data = Serial.parseInt();
+  int valorFT=analogRead(Fotosenso);
+  int valorHU=analogRead(HumoSensor);
+  int valorIR=digitalRead(InfraSensor);
+  int Sonido = analogRead(sensorSonido); 
+  for (int i = 0; i < tamaniio; i++) {
+    digitalWrite(trigPins[i], HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trigPins[i], LOW);
+    long distancia = pulseIn(echoPins[i], HIGH) / 2 / 29.1;
+    if(ID[i]=="US")
+  {
+    if(distancia != ultimoValor[i])
+    {
+
+    if(distancia<=5)
+    {
+      Serial.print(ID[i]);
+      Serial.print("-");
+      Serial.print(Name[i]);
+      Serial.print("-");
+      Serial.print(distancia);
+      digitalWrite(ledrojo, HIGH);
+    } 
+    else
+    {
+       Serial.print(ID[i] + "-" + Name[i] + "-" + distancia);
+        digitalWrite(ledrojo, LOW);
+    
+    }
+    
+  }
+  ultimoValor[i]=distancia;
+   
+  }
+    else if(ID[i]=="FT")
+      {
+        if(valorFT != ultimoValor[i])
+        {
+        if(valorFT>300)
+        {
+         Serial.print(ID[i] + "-" + Name[i] + "-" + 1);
+         digitalWrite(ledFR, HIGH);
+    
+        }
+        else
+        {
+          Serial.print(ID[i] + "-" + Name[i] + "-" + 0);
+         digitalWrite(ledFR, LOW);
+    
+        }
+        }
+        ultimoValor[i]=valorFT;
+        
+      }
+      else if(ID[i]=="HM")
+      {
+        if(valorHU>100)
+        {
+          Serial.print(ID[i] + "-" + Name[i] + "-" + valorHU);
+          //digitalWrite(ledHU, HIGH);
+ 
+        }
+      }
+      else if(ID[i]=="IF")
+      {
+        if(valorIR==LOW)
+        {
+          servo1.write(0);
+    
+        }
+        else
+        {
+          Serial.print(ID[i] + "-" + Name[i] + "-" + 1);
+          servo1.write(90);
+ 
+        }
+      } 
+      else if(ID[i]=="RFC")
+      {
+        if (mfrc522.PICC_IsNewCardPresent()) {
+    if (mfrc522.PICC_ReadCardSerial()) {
+      Serial.print(ID[i] + "-" + Name[i] + "-" + "Abierto");
+      servo1.write(90);
+    }
+  }
+      }
+      else if(ID[i]=="SO")
+      {
+        if (Sonido > umbral) { 
+        Serial.println(ID[i]+ "-"+Name[i]+"-" + Sonido);
+        }
+      }
+      else if(data==1)
+      {
+        servo1.write(90);
+      }
+     
+   Serial.println();
+    }
+
+}
